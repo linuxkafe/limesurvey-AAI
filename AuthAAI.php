@@ -179,6 +179,15 @@ class AuthAAI extends AuthPluginBase {
 				}
 			}
 
+			// Keep the display name in sync with the IdP attribute, so the
+			// admin UI shows the person's name instead of the nmec.
+			// Only update when the stored name is empty or still equals the
+			// username, so a deliberately customised name is not clobbered.
+			if ($this->displayName !== '' && ($oUser->full_name === '' || $oUser->full_name === $oUser->users_name)) {
+				$oUser->full_name = substr($this->displayName, 0, 50);
+				$oUser->save();
+			}
+
 			// setAuthPlugin() was already called in beforeLogin(); calling it
 			// again here would stop the event and prevent later plugins (e.g.
 			// TwoFactorAdminLogin) from running. Only setAuthSuccess is needed.
