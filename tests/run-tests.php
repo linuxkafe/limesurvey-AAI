@@ -132,8 +132,16 @@ class User {
 
 class Permission {
     public static $granted = [];
+    public static function model() {
+        return new self();
+    }
     public function setGlobalPermission($uid, $permType, array $perms = ['read_p']) {
         self::$granted[$uid][$permType] = $perms;
+    }
+    public function hasGlobalPermission($permType, $crud = 'read', $uid = null) {
+        if (!isset(self::$granted[$uid][$permType])) return false;
+        $crudFlag = strtolower($crud) . '_p';
+        return in_array($crudFlag, self::$granted[$uid][$permType]);
     }
 }
 
