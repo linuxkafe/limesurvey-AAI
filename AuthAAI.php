@@ -102,7 +102,19 @@ class AuthAAI extends AuthPluginBase {
 		}
 		$this->setUsername($username);
 
-		$this->displayName = (string) $this->getShibAttribute('cn');
+		// Prefer givenName + sn (e.g. "Miguel Ferraz") over the full cn
+		// ("Miguel Ferraz Carneiro dos Santos Costa"), which is too long for
+		// the admin topbar. Fall back to cn when the split attributes are
+		// not released.
+		$givenName = $this->getShibAttribute('givenName');
+		$sn = $this->getShibAttribute('sn');
+		if ($givenName !== null && $sn !== null) {
+			$this->displayName = $givenName . ' ' . $sn;
+		} elseif ($givenName !== null) {
+			$this->displayName = $givenName;
+		} else {
+			$this->displayName = (string) $this->getShibAttribute('cn');
+		}
 		$this->mail = (string) $this->getShibAttribute('mail');
 		if ($this->mail === '') {
 			// The email column is mandatory on insert; eppn is a usable
