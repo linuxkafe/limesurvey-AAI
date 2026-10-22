@@ -138,6 +138,11 @@ class AuthAAI extends AuthPluginBase {
 				$oUser->email = $this->mail;
 
 				if ($oUser->save()) {
+					// Grant the 'auth_aai' permission so this account can
+					// only be used through AAI in the future. This prevents
+					// a federated user from taking over a local account that
+					// happens to share the same users_name.
+					Permission::model()->setGlobalPermission($oUser->uid, 'auth_aai');
 					if ($this->get('permission_create_survey', null, null, false)) {
 						Permission::model()->setGlobalPermission($oUser->uid, 'surveys', array(
 								'create_p',
@@ -161,8 +166,22 @@ class AuthAAI extends AuthPluginBase {
 			$this->setAuthFailure(self::ERROR_UNKNOWN_IDENTITY);
 			return;
 		} else {
+			// Verify the existing account is allowed to use AAI.
+			// Lazy migration: legacy AAI users (created before the
+			// auth_aai permission existed) have parent_id=1 and a numeric
+			// username (the nmec). Grant the permission and proceed.
+			if (!Permission::model()->hasGlobalPermission('auth_aai', 'read', $oUser->uid)) {
+				if ($oUser->parent_id == 1 && ctype_digit((string) $oUser->users_name)) {
+					Permission::model()->setGlobalPermission($oUser->uid, 'auth_aai');
+				} else {
+					$this->setAuthFailure(self::ERROR_AUTH_METHOD_INVALID, gT('AAI authentication is not allowed for this user'));
+					return;
+				}
+			}
 
-			$this->setAuthPlugin();
+			// setAuthPlugin() was already called in beforeLogin(); calling it
+			// again here would stop the event and prevent later plugins (e.g.
+			// TwoFactorAdminLogin) from running. Only setAuthSuccess is needed.
 			$this->setAuthSuccess($oUser);
 
 			return;
