@@ -21,6 +21,7 @@
 class AuthAAI extends AuthPluginBase {
 
 	protected $storage = 'DbStorage';
+	protected static $aaiLogoutPending = false;
 	static protected $description = 'Shibboleth authentication';
 	static protected $name = 'AuthAAI';
 	public $atributi = '';
@@ -41,6 +42,7 @@ class AuthAAI extends AuthPluginBase {
 		$this->subscribe('beforeLogin');
 		$this->subscribe('newUserSession');
 		$this->subscribe('beforeLogout');
+		$this->subscribe('afterLogout');
 	}
 
 	/**
@@ -239,16 +241,27 @@ class AuthAAI extends AuthPluginBase {
 	 * otherwise a subsequent visit would silently re-authenticate the user.
 	 */
 	public function beforeLogout() {
-		$event = $this->getEvent();
-		if ($event === null) {
+		// The beforeLogout event carries no identity, so identify the
+		// current user through the permission store before the session is
+		// destroyed.
+		$uid = null;
+		if (isset(\Yii::app()->user) && isset(\Yii::app()->user->id)) {
+			$uid = \Yii::app()->user->id;
+		}
+		if ($uid !== null && Permission::model()->hasGlobalPermission('auth_aai', 'read', $uid)) {
+			self::$aaiLogoutPending = true;
+		}
+	}
+
+	public function afterLogout() {
+		if (!self::$aaiLogoutPending) {
 			return;
 		}
-		$identity = $event->get('identity');
-		// Only redirect sessions that authenticated through AAI.
-		if (!is_object($identity) || !isset($identity->plugin) || $identity->plugin !== 'AuthAAI') {
-			return;
-		}
-		$event->set('redirect', '/Shibboleth.sso/Logout');
+		self::$aaiLogoutPending = false;
+		// Send the browser to the Shibboleth SP logout endpoint so the SSO
+		// session is terminated as well.
+		header('Location: /Shibboleth.sso/Logout');
+		exit;
 	}
 
 }

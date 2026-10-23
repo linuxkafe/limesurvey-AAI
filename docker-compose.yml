@@ -1,0 +1,53 @@
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: limesurvey
+      MYSQL_USER: limesurvey
+      MYSQL_PASSWORD: limesurvey
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  init-perms:
+    image: busybox
+    user: "0:0"
+    volumes:
+      - ./AuthAAI.php:/var/www/html/plugins/AuthAAI/AuthAAI.php
+      - ./config.xml:/var/www/html/plugins/AuthAAI/config.xml
+    command: ["sh", "-c", "chmod -R 755 /var/www/html/plugins/AuthAAI || true"]
+    restart: "no"
+
+  limesurvey:
+    image: martialblog/limesurvey:6-apache
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      DB_TYPE: mysql
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_NAME: limesurvey
+      DB_USERNAME: limesurvey
+      DB_PASSWORD: limesurvey
+      ADMIN_USER: admin
+      ADMIN_PASSWORD: admin
+      ADMIN_NAME: admin
+      ADMIN_EMAIL: admin@example.com
+      LISTEN_PORT: "8080"
+    volumes:
+      - ./AuthAAI.php:/var/www/html/plugins/AuthAAI/AuthAAI.php
+      - ./config.xml:/var/www/html/plugins/AuthAAI/config.xml
+      - ./tests:/var/www/html/plugins/AuthAAI/tests
+    command: ["apache2-foreground"]
+    restart: unless-stopped
+
+volumes:
+  db_data:
