@@ -180,10 +180,22 @@ class AuthAAI extends AuthPluginBase {
 		} else {
 			// Verify the existing account is allowed to use AAI.
 			// Lazy migration: legacy AAI users (created before the
-			// auth_aai permission existed) have parent_id=1 and a numeric
-			// username (the nmec). Grant the permission and proceed.
+			// auth_aai permission existed) are recognised by any of:
+			//   - parent_id=1 and a numeric username (the nmec), the
+			//     signature of an account created by this plugin; or
+			//   - an email that matches the address released by the IdP,
+			//     which is a strong identity signal from a trusted IdP and
+			//     covers accounts created by an administrator or by an
+			//     older plugin version (parent_id != 1).
+			// In both cases grant the permission and proceed.
+			$isLegacyAaiUser = (
+				$oUser->parent_id == 1 && ctype_digit((string) $oUser->users_name)
+			) || (
+				$this->mail !== '' && strcasecmp((string) $oUser->email, $this->mail) === 0
+			);
+
 			if (!Permission::model()->hasGlobalPermission('auth_aai', 'read', $oUser->uid)) {
-				if ($oUser->parent_id == 1 && ctype_digit((string) $oUser->users_name)) {
+				if ($isLegacyAaiUser) {
 					Permission::model()->setGlobalPermission($oUser->uid, 'auth_aai');
 				} else {
 					$this->setAuthFailure(self::ERROR_AUTH_METHOD_INVALID, gT('AAI authentication is not allowed for this user'));
@@ -197,6 +209,15 @@ class AuthAAI extends AuthPluginBase {
 			// username, so a deliberately customised name is not clobbered.
 			if ($this->displayName !== '' && ($oUser->full_name === '' || $oUser->full_name === $oUser->users_name)) {
 				$oUser->full_name = substr($this->displayName, 0, 50);
+				$oUser->save();
+			}
+
+			// Keep the e-mail in sync with the IdP attribute, so a change of
+			// address released by the IdP is reflected on the account. Only
+			// update when a non-empty IdP value is present, and persist only
+			// when the save succeeds so a failure does not block the login.
+			if ($this->mail !== '' && strcasecmp((string) $oUser->email, $this->mail) !== 0) {
+				$oUser->email = $this->mail;
 				$oUser->save();
 			}
 
