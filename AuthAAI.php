@@ -40,6 +40,7 @@ class AuthAAI extends AuthPluginBase {
 	public function init() {
 		$this->subscribe('beforeLogin');
 		$this->subscribe('newUserSession');
+		$this->subscribe('beforeLogout');
 	}
 
 	/**
@@ -229,4 +230,25 @@ class AuthAAI extends AuthPluginBase {
 			return;
 		}
 	}
+	/**
+	 * Redirect AAI users to the Shibboleth SP logout endpoint.
+	 *
+	 * LimeSurvey dispatches 'beforeLogout' before destroying the session.
+	 * For accounts that authenticated through AAI we point the logout flow at
+	 * the Shibboleth SP logout URL so the SSO session is terminated too;
+	 * otherwise a subsequent visit would silently re-authenticate the user.
+	 */
+	public function beforeLogout() {
+		$event = $this->getEvent();
+		if ($event === null) {
+			return;
+		}
+		$identity = $event->get('identity');
+		// Only redirect sessions that authenticated through AAI.
+		if (!is_object($identity) || !isset($identity->plugin) || $identity->plugin !== 'AuthAAI') {
+			return;
+		}
+		$event->set('redirect', '/Shibboleth.sso/Logout');
+	}
+
 }
