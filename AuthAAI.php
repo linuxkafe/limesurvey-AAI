@@ -197,7 +197,19 @@ class AuthAAI extends AuthPluginBase {
 				$this->mail !== '' && strcasecmp((string) $oUser->email, $this->mail) === 0
 			);
 
-			if (!Permission::model()->hasGlobalPermission('auth_aai', 'read', $oUser->uid)) {
+			// hasGlobalPermission() cannot be used here: 'auth_aai' is a
+			// custom permission created by this plugin and is not part of the
+			// LimeSurvey core permission matrix. For superadmins it always
+			// returns true and for regular users always false, which made the
+			// plugin re-grant the permission on every login and trigger a
+			// duplicate-key INSERT. Query the permissions table directly.
+			$hasAuthAai = (bool) Permission::model()->findByAttributes(array(
+				'uid'        => $oUser->uid,
+				'entity'     => 'global',
+				'permission' => 'auth_aai'
+			));
+
+			if (!$hasAuthAai) {
 				if ($isLegacyAaiUser) {
 					Permission::model()->setGlobalPermission($oUser->uid, 'auth_aai');
 				} else {
@@ -248,7 +260,11 @@ class AuthAAI extends AuthPluginBase {
 		if (isset(\Yii::app()->user) && isset(\Yii::app()->user->id)) {
 			$uid = \Yii::app()->user->id;
 		}
-		if ($uid !== null && Permission::model()->hasGlobalPermission('auth_aai', 'read', $uid)) {
+		if ($uid !== null && (bool) Permission::model()->findByAttributes(array(
+			'uid'        => $uid,
+			'entity'     => 'global',
+			'permission' => 'auth_aai'
+		))) {
 			self::$aaiLogoutPending = true;
 		}
 	}

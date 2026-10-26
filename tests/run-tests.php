@@ -143,6 +143,13 @@ class Permission {
         $crudFlag = strtolower($crud) . '_p';
         return in_array($crudFlag, self::$granted[$uid][$permType]);
     }
+    public function findByAttributes($attrs) {
+        $uid = isset($attrs['uid']) ? $attrs['uid'] : null;
+        $perm = isset($attrs['permission']) ? $attrs['permission'] : null;
+        if ($uid === null || $perm === null) return null;
+        if (!isset(self::$granted[$uid][$perm])) return null;
+        return (object) array('uid' => $uid, 'permission' => $perm);
+    }
 }
 
 class LimesurveyApi {
